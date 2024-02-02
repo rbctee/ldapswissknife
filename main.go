@@ -84,23 +84,72 @@ func menu() {
 
 		if checkCommand(s[0], "help") {
 			usage([]string{})
+		} else if checkCommand(s[0], "computers") {
+			manageComputers(s)
 		} else if checkCommand(s[0], "domains") {
 			manageDomains(s)
 		} else if checkCommand(s[0], "exit") {
 			return
-		} else if checkCommand(s[0], "quit") {
-			return
-		} else if checkCommand(s[0], "users") {
-			manageUsers(s)
-		} else if checkCommand(s[0], "computers") {
-			manageComputers(s)
 		} else if checkCommand(s[0], "gpos") {
 			manageGPOs(s)
 		} else if checkCommand(s[0], "groups") {
 			manageGroups(s)
+		} else if checkCommand(s[0], "quit") {
+			return
+		} else if checkCommand(s[0], "trusts") {
+			manageTrusts(s)
+		} else if checkCommand(s[0], "users") {
+			manageUsers(s)
 		}
 	}
 
+}
+
+func manageTrusts(s []string) {
+	if len(s) == 1 {
+		usage([]string{"trusts"})
+		return
+	}
+
+	if checkCommand(s[1], "trusts") {
+		usage(s)
+	} else if checkCommand(s[1], "list") {
+		fmt.Printf("List of domain trusts:\n")
+		listTrusts()
+	}
+}
+
+func listTrusts() {
+	l, err := ldap.DialURL(fmt.Sprintf("ldap://%s:389", ldapServer))
+	if err != nil {
+		ErrorLog.Printf("[!] Failed to connect to remote LDAP server 'ldap://%s:389'.\n\tError: %s\n", ldapServer, err)
+		return
+	}
+	defer l.Close()
+
+	err = l.Bind(ldapUsername, ldapPassword)
+	if err != nil {
+		ErrorLog.Printf("[!] Failed to authenticate with remote LDAP server using %s:%s.\n\tError: %s\n", ldapUsername, ldapPassword, err)
+		return
+	}
+
+	sr, err := l.Search(&ldap.SearchRequest{
+		BaseDN:       ldapBaseDN,
+		Scope:        ldap.ScopeWholeSubtree,
+		DerefAliases: ldap.NeverDerefAliases,
+		Filter:       "(objectClass=trustedDomain)",
+	})
+
+	if err != nil {
+		ErrorLog.Printf("Error while performing search: %s\n", err)
+		return
+	}
+
+	for _, entry := range sr.Entries {
+		for _, v := range entry.Attributes {
+			fmt.Printf("%s: %s\n", v.Name, v.Values)
+		}
+	}
 }
 
 func manageDomains(s []string) {
@@ -406,6 +455,7 @@ func usage(s []string) {
 		fmt.Println("domains\t\t\t\tManage domains")
 		fmt.Println("gpos\t\t\t\tManage Group Policy objects")
 		fmt.Println("groups\t\t\t\tManage groups")
+		fmt.Println("trusts\t\t\t\tManage domain trusts")
 		fmt.Println("users\t\t\t\tManage users")
 		return
 	}
@@ -434,6 +484,13 @@ func usage(s []string) {
 	} else if checkCommand(s[0], "groups") {
 		if len(s) == 1 {
 			fmt.Printf("Usage: groups COMMAND\n\n")
+			fmt.Printf("Commands:\n")
+			fmt.Println("list")
+			return
+		}
+	} else if checkCommand(s[0], "trusts") {
+		if len(s) == 1 {
+			fmt.Printf("Usage: trusts COMMAND\n\n")
 			fmt.Printf("Commands:\n")
 			fmt.Println("list")
 			return
