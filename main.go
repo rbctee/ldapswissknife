@@ -16,10 +16,10 @@ var (
 	InfoLog    *log.Logger
 	ErrorLog   *log.Logger
 
-	ldapServer        string
-	ldapUsername      string
-	ldapPassword      string
-	distinguishedName string
+	ldapServer   string
+	ldapUsername string
+	ldapPassword string
+	ldapBaseDN   string
 )
 
 func main() {
@@ -30,7 +30,6 @@ func main() {
 	ls := flag.String("server", "", "LDAP Server DNS/IP Address")
 	lu := flag.String("username", "", "LDAP username for authentication")
 	lp := flag.String("password", "", "LDAP password for authentication")
-	dn := flag.String("dn", "", "Distinguished Name (DN) of the domain")
 
 	flag.Parse()
 
@@ -52,11 +51,11 @@ func main() {
 	}
 	ldapPassword = *lp
 
-	if *dn == "" {
-		flag.Usage()
+	err := getBaseDN()
+	if err != nil {
+		fmt.Println(err)
 		return
 	}
-	distinguishedName = *dn
 
 	menu()
 }
@@ -104,6 +103,32 @@ func manageComputers(s []string) {
 	}
 }
 
+func getBaseDN() (err error) {
+	l, err := ldap.DialURL(fmt.Sprintf("ldap://%s:389", ldapServer))
+	if err != nil {
+		return fmt.Errorf("failed to connect to remote LDAP server 'ldap://%s:389': %s", ldapServer, err)
+	}
+	defer l.Close()
+
+	sr, err := l.Search(&ldap.SearchRequest{
+		BaseDN:       "",
+		Scope:        ldap.ScopeBaseObject,
+		DerefAliases: ldap.NeverDerefAliases,
+		Filter:       "(supportedLDAPVersion=*)",
+	})
+
+	if err != nil {
+		return fmt.Errorf("error while performing search: %s", err)
+	}
+
+	if len(sr.Entries) < 1 {
+		return fmt.Errorf("error while retrieving the base DN of the domain")
+	}
+
+	ldapBaseDN = sr.Entries[0].GetEqualFoldAttributeValue("defaultNamingContext")
+	return nil
+}
+
 func listUsers() {
 	l, err := ldap.DialURL(fmt.Sprintf("ldap://%s:389", ldapServer))
 	if err != nil {
@@ -118,15 +143,14 @@ func listUsers() {
 		return
 	}
 
-	searchRequest := ldap.NewSearchRequest(
-		distinguishedName, // The base dn to search
-		ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, 0, false,
-		"(&(objectClass=User))",             // The filter to apply
-		[]string{"dn", "cn", "objectClass"}, // A list attributes to retrieve
-		nil,
-	)
+	sr, err := l.Search(&ldap.SearchRequest{
+		BaseDN:       ldapBaseDN,
+		Scope:        ldap.ScopeWholeSubtree,
+		DerefAliases: ldap.NeverDerefAliases,
+		Filter:       "(objectClass=User)",
+		Attributes:   []string{"dn", "cn", "objectClass"},
+	})
 
-	sr, err := l.Search(searchRequest)
 	if err != nil {
 		ErrorLog.Printf("Error while performing search: %s\n", err)
 		return
@@ -165,15 +189,14 @@ func listComputers() {
 		return
 	}
 
-	searchRequest := ldap.NewSearchRequest(
-		distinguishedName, // The base dn to search
-		ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, 0, false,
-		"(&(objectClass=Computer))",         // The filter to apply
-		[]string{"dn", "cn", "objectClass"}, // A list attributes to retrieve
-		nil,
-	)
+	sr, err := l.Search(&ldap.SearchRequest{
+		BaseDN:       ldapBaseDN,
+		Scope:        ldap.ScopeWholeSubtree,
+		DerefAliases: ldap.NeverDerefAliases,
+		Filter:       "(objectClass=Computer)",
+		Attributes:   []string{"dn", "cn", "objectClass"},
+	})
 
-	sr, err := l.Search(searchRequest)
 	if err != nil {
 		ErrorLog.Printf("Error while performing search: %s\n", err)
 		return
