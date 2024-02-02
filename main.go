@@ -84,9 +84,58 @@ func menu() {
 			manageUsers(s)
 		} else if checkCommand(s[0], "computers") {
 			manageComputers(s)
+		} else if checkCommand(s[0], "gpos") {
+			manageGPOs(s)
 		}
 	}
 
+}
+
+func manageGPOs(s []string) {
+	if len(s) == 1 {
+		usage([]string{"gpos"})
+		return
+	}
+
+	if checkCommand(s[1], "help") {
+		usage(s)
+	} else if checkCommand(s[1], "list") {
+		fmt.Printf("List of Group Policy Objects:\n")
+		listGPOs()
+	}
+}
+
+func listGPOs() {
+	l, err := ldap.DialURL(fmt.Sprintf("ldap://%s:389", ldapServer))
+	if err != nil {
+		ErrorLog.Printf("[!] Failed to connect to remote LDAP server 'ldap://%s:389'.\n\tError: %s\n", ldapServer, err)
+		return
+	}
+	defer l.Close()
+
+	err = l.Bind(ldapUsername, ldapPassword)
+	if err != nil {
+		ErrorLog.Printf("[!] Failed to authenticate with remote LDAP server using %s:%s.\n\tError: %s\n", ldapUsername, ldapPassword, err)
+		return
+	}
+
+	sr, err := l.Search(&ldap.SearchRequest{
+		BaseDN:       ldapBaseDN,
+		Scope:        ldap.ScopeWholeSubtree,
+		DerefAliases: ldap.NeverDerefAliases,
+		Filter:       "(objectClass=groupPolicyContainer)",
+	})
+
+	if err != nil {
+		ErrorLog.Printf("Error while performing search: %s\n", err)
+		return
+	}
+
+	for _, entry := range sr.Entries {
+		fmt.Printf("- %s:\n", entry.GetEqualFoldAttributeValue("displayName"))
+		fmt.Printf("\tPath: %s\n", entry.GetEqualFoldAttributeValue("gPCFileSysPath"))
+		fmt.Printf("\tDistinguished name: %s\n", entry.GetEqualFoldAttributeValue("distinguishedName"))
+	}
 }
 
 func manageComputers(s []string) {
@@ -212,6 +261,7 @@ func usage(s []string) {
 		fmt.Printf("Available commands:\n\n")
 		fmt.Println("users\t\t\t\tManage users")
 		fmt.Println("computers\t\t\tManage computers")
+		fmt.Println("gpos\t\t\t\tManage Group Policy Objects")
 		return
 	}
 
@@ -226,6 +276,13 @@ func usage(s []string) {
 	} else if checkCommand(s[0], "computers") {
 		if len(s) == 1 {
 			fmt.Printf("Usage: computers COMMAND\n\n")
+			fmt.Printf("Commands:\n")
+			fmt.Println("list")
+			return
+		}
+	} else if checkCommand(s[0], "gpos") {
+		if len(s) == 1 {
+			fmt.Printf("Usage: gpos COMMAND\n\n")
 			fmt.Printf("Commands:\n")
 			fmt.Println("list")
 			return
