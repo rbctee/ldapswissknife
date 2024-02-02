@@ -469,7 +469,25 @@ func listComputers() {
 	}
 
 	for _, entry := range sr.Entries {
-		fmt.Printf("%s: %v\n", entry.DN, entry.GetEqualFoldAttributeValue("cn"))
+		fmt.Printf("%s:\n", entry.GetEqualFoldAttributeValue("cn"))
+		fmt.Printf("\tDistinguished name: %s\n", entry.DN)
+		fmt.Printf("\tSAM account name: %s\n", entry.GetEqualFoldAttributeValue("sAMAccountName"))
+
+		sidString := convertBinToSid(entry.GetEqualFoldAttributeValue("objectSid"))
+		fmt.Printf("\tSID: %s\n", sidString)
+
+		userAccountControl, err := strconv.Atoi(entry.GetEqualFoldAttributeValue("userAccountControl"))
+		if err != nil {
+			ErrorLog.Printf("Failed to parse value of property 'userAccountControl'\n")
+		}
+
+		userEnabled := (userAccountControl & (1 << (2 - 1))) == 0
+		fmt.Printf("\tEnabled: %t\n", userEnabled)
+
+		userDescription := entry.GetEqualFoldAttributeValue("description")
+		if userDescription != "" {
+			fmt.Printf("\tDescription: %s\n", userDescription)
+		}
 	}
 }
 
@@ -482,7 +500,6 @@ func usage(s []string) {
 		fmt.Println("groups\t\t\t\tManage groups")
 		fmt.Println("trusts\t\t\t\tManage domain trusts")
 		fmt.Println("users\t\t\t\tManage users")
-		fmt.Println("usergroups\t\t\tManage user-group membership")
 		return
 	}
 
