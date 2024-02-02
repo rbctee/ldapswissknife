@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/go-ldap/ldap/v3"
@@ -389,7 +390,6 @@ func listUsers() {
 		Scope:        ldap.ScopeWholeSubtree,
 		DerefAliases: ldap.NeverDerefAliases,
 		Filter:       "(objectClass=User)",
-		Attributes:   []string{"dn", "cn", "objectClass"},
 	})
 
 	if err != nil {
@@ -398,7 +398,33 @@ func listUsers() {
 	}
 
 	for _, entry := range sr.Entries {
-		fmt.Printf("%s: %v\n", entry.DN, entry.GetEqualFoldAttributeValue("cn"))
+		fmt.Printf("- %s\n", entry.GetEqualFoldAttributeValue("sAMAccountName"))
+		fmt.Printf("\tDistinguished name: %s\n", entry.DN)
+		fmt.Printf("\tUser principal name (UPN): %s\n", entry.GetEqualFoldAttributeValue("userPrincipalName"))
+
+		userAccountControl, err := strconv.Atoi(entry.GetEqualFoldAttributeValue("userAccountControl"))
+		if err != nil {
+			ErrorLog.Printf("Failed to parse value of property 'userAccountControl'\n")
+		}
+
+		userEnabled := (userAccountControl & (1 << (2 - 1))) == 0
+		fmt.Printf("\tEnabled: %t\n", userEnabled)
+
+		userDescription := entry.GetEqualFoldAttributeValue("description")
+		if userDescription != "" {
+			fmt.Printf("\tDescription: %s\n", userDescription)
+		}
+
+		sidString := convertBinToSid(entry.GetEqualFoldAttributeValue("objectSid"))
+		fmt.Printf("\tSID: %s\n", sidString)
+
+		userGroups := entry.GetEqualFoldAttributeValues("memberof")
+		if len(userGroups) > 0 {
+			fmt.Println("\tMember of these groups:")
+			for _, g := range userGroups {
+				fmt.Printf("\t\t- %s\n", g)
+			}
+		}
 	}
 }
 
@@ -435,7 +461,6 @@ func listComputers() {
 		Scope:        ldap.ScopeWholeSubtree,
 		DerefAliases: ldap.NeverDerefAliases,
 		Filter:       "(objectClass=Computer)",
-		Attributes:   []string{"dn", "cn", "objectClass"},
 	})
 
 	if err != nil {
@@ -457,6 +482,7 @@ func usage(s []string) {
 		fmt.Println("groups\t\t\t\tManage groups")
 		fmt.Println("trusts\t\t\t\tManage domain trusts")
 		fmt.Println("users\t\t\t\tManage users")
+		fmt.Println("usergroups\t\t\tManage user-group membership")
 		return
 	}
 
@@ -502,6 +528,5 @@ func usage(s []string) {
 			fmt.Println("list")
 			return
 		}
-
 	}
 }
