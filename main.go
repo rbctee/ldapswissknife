@@ -22,6 +22,14 @@ var (
 	ldapBaseDN   string
 )
 
+type SID struct {
+	RevisionLevel     int
+	SubAuthorityCount int
+	Authority         int
+	SubAuthorities    []int
+	RelativeID        *int
+}
+
 func main() {
 	InfoLog = log.New(os.Stdout, "INFO: ", log.Ldate|log.Ltime)
 	WarningLog = log.New(os.Stdout, "WARNING: ", log.Ldate|log.Ltime)
@@ -86,9 +94,90 @@ func menu() {
 			manageComputers(s)
 		} else if checkCommand(s[0], "gpos") {
 			manageGPOs(s)
+		} else if checkCommand(s[0], "groups") {
+			manageGroups(s)
 		}
 	}
 
+}
+
+func manageGroups(s []string) {
+	if len(s) == 1 {
+		usage([]string{"groups"})
+		return
+	}
+
+	if checkCommand(s[1], "groups") {
+		usage(s)
+	} else if checkCommand(s[1], "list") {
+		fmt.Printf("List of groups:\n")
+		listGroups()
+	}
+}
+
+func listGroups() {
+	l, err := ldap.DialURL(fmt.Sprintf("ldap://%s:389", ldapServer))
+	if err != nil {
+		ErrorLog.Printf("[!] Failed to connect to remote LDAP server 'ldap://%s:389'.\n\tError: %s\n", ldapServer, err)
+		return
+	}
+	defer l.Close()
+
+	err = l.Bind(ldapUsername, ldapPassword)
+	if err != nil {
+		ErrorLog.Printf("[!] Failed to authenticate with remote LDAP server using %s:%s.\n\tError: %s\n", ldapUsername, ldapPassword, err)
+		return
+	}
+
+	sr, err := l.Search(&ldap.SearchRequest{
+		BaseDN:       ldapBaseDN,
+		Scope:        ldap.ScopeWholeSubtree,
+		DerefAliases: ldap.NeverDerefAliases,
+		Filter:       "(objectClass=group)",
+	})
+
+	if err != nil {
+		ErrorLog.Printf("Error while performing search: %s\n", err)
+		return
+	}
+
+	for _, entry := range sr.Entries {
+		fmt.Printf("- %s:\n", entry.GetEqualFoldAttributeValue("cn"))
+		fmt.Printf("\tDistinguished name: %s\n", entry.GetEqualFoldAttributeValue("distinguishedName"))
+		sidString := convertBinToSid(entry.GetEqualFoldAttributeValue("objectSid"))
+		fmt.Printf("\tSID: %s\n", sidString)
+	}
+}
+
+/*
+Code taken from:
+https://github.com/bwmarrin/go-objectsid/blob/master/main.go
+*/
+func convertBinToSid(sidBytes string) string {
+	var sid SID
+	sid.RevisionLevel = int(sidBytes[0])
+	sid.SubAuthorityCount = int(sidBytes[1]) & 0xFF
+
+	for i := 2; i <= 7; i++ {
+		sid.Authority = sid.Authority | int(sidBytes[i])<<(8*(5-(i-2)))
+	}
+
+	var offset = 8
+	var size = 4
+	for i := 0; i < sid.SubAuthorityCount; i++ {
+		var subAuthority int
+		for k := 0; k < size; k++ {
+			subAuthority = subAuthority | (int(sidBytes[offset+k])&0xFF)<<(8*k)
+		}
+		sid.SubAuthorities = append(sid.SubAuthorities, subAuthority)
+		offset += size
+	}
+
+	s := fmt.Sprintf("S-%d-%d", sid.RevisionLevel, sid.Authority)
+	for _, v := range sid.SubAuthorities {
+		s += fmt.Sprintf("-%d", v)
+	}
+	return s
 }
 
 func manageGPOs(s []string) {
@@ -259,9 +348,10 @@ func listComputers() {
 func usage(s []string) {
 	if len(s) == 0 {
 		fmt.Printf("Available commands:\n\n")
-		fmt.Println("users\t\t\t\tManage users")
 		fmt.Println("computers\t\t\tManage computers")
-		fmt.Println("gpos\t\t\t\tManage Group Policy Objects")
+		fmt.Println("gpos\t\t\t\tManage Group Policy objects")
+		fmt.Println("groups\t\t\t\tManage groups")
+		fmt.Println("users\t\t\t\tManage users")
 		return
 	}
 
@@ -283,6 +373,13 @@ func usage(s []string) {
 	} else if checkCommand(s[0], "gpos") {
 		if len(s) == 1 {
 			fmt.Printf("Usage: gpos COMMAND\n\n")
+			fmt.Printf("Commands:\n")
+			fmt.Println("list")
+			return
+		}
+	} else if checkCommand(s[0], "groups") {
+		if len(s) == 1 {
+			fmt.Printf("Usage: groups COMMAND\n\n")
 			fmt.Printf("Commands:\n")
 			fmt.Println("list")
 			return
