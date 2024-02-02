@@ -84,6 +84,8 @@ func menu() {
 
 		if checkCommand(s[0], "help") {
 			usage([]string{})
+		} else if checkCommand(s[0], "domains") {
+			manageDomains(s)
 		} else if checkCommand(s[0], "exit") {
 			return
 		} else if checkCommand(s[0], "quit") {
@@ -99,6 +101,58 @@ func menu() {
 		}
 	}
 
+}
+
+func manageDomains(s []string) {
+	if len(s) == 1 {
+		usage([]string{"domains"})
+		return
+	}
+
+	if checkCommand(s[1], "domains") {
+		usage(s)
+	} else if checkCommand(s[1], "list") {
+		fmt.Printf("List of domains:\n")
+		listDomains()
+	}
+}
+
+func listDomains() {
+	l, err := ldap.DialURL(fmt.Sprintf("ldap://%s:389", ldapServer))
+	if err != nil {
+		ErrorLog.Printf("[!] Failed to connect to remote LDAP server 'ldap://%s:389'.\n\tError: %s\n", ldapServer, err)
+		return
+	}
+	defer l.Close()
+
+	err = l.Bind(ldapUsername, ldapPassword)
+	if err != nil {
+		ErrorLog.Printf("[!] Failed to authenticate with remote LDAP server using %s:%s.\n\tError: %s\n", ldapUsername, ldapPassword, err)
+		return
+	}
+
+	sr, err := l.Search(&ldap.SearchRequest{
+		BaseDN:       ldapBaseDN,
+		Scope:        ldap.ScopeWholeSubtree,
+		DerefAliases: ldap.NeverDerefAliases,
+		Filter:       "(objectClass=domain)",
+	})
+
+	if err != nil {
+		ErrorLog.Printf("Error while performing search: %s\n", err)
+		return
+	}
+
+	for _, entry := range sr.Entries {
+		fmt.Printf("- %s:\n", strings.ToUpper(entry.GetEqualFoldAttributeValue("name")))
+		fmt.Printf("\tDistinguished name: %s\n", entry.GetEqualFoldAttributeValue("distinguishedName"))
+		fmt.Printf("\tMachine Account quota: %s\n", entry.GetEqualFoldAttributeValue("ms-DS-MachineAccountQuota"))
+
+		sidString := convertBinToSid(entry.GetEqualFoldAttributeValue("objectSid"))
+		fmt.Printf("\tSID: %s\n", sidString)
+
+		fmt.Printf("\tForest functional level: %s\n", entry.GetEqualFoldAttributeValue("msDS-Behavior-Version"))
+	}
 }
 
 func manageGroups(s []string) {
@@ -349,23 +403,23 @@ func usage(s []string) {
 	if len(s) == 0 {
 		fmt.Printf("Available commands:\n\n")
 		fmt.Println("computers\t\t\tManage computers")
+		fmt.Println("domains\t\t\t\tManage domains")
 		fmt.Println("gpos\t\t\t\tManage Group Policy objects")
 		fmt.Println("groups\t\t\t\tManage groups")
 		fmt.Println("users\t\t\t\tManage users")
 		return
 	}
 
-	if checkCommand(s[0], "users") {
+	if checkCommand(s[0], "computers") {
 		if len(s) == 1 {
-			fmt.Printf("Usage: users COMMAND\n\n")
+			fmt.Printf("Usage: computers COMMAND\n\n")
 			fmt.Printf("Commands:\n")
 			fmt.Println("list")
 			return
 		}
-
-	} else if checkCommand(s[0], "computers") {
+	} else if checkCommand(s[0], "domains") {
 		if len(s) == 1 {
-			fmt.Printf("Usage: computers COMMAND\n\n")
+			fmt.Printf("Usage: domains COMMAND\n\n")
 			fmt.Printf("Commands:\n")
 			fmt.Println("list")
 			return
@@ -384,5 +438,13 @@ func usage(s []string) {
 			fmt.Println("list")
 			return
 		}
+	} else if checkCommand(s[0], "users") {
+		if len(s) == 1 {
+			fmt.Printf("Usage: users COMMAND\n\n")
+			fmt.Printf("Commands:\n")
+			fmt.Println("list")
+			return
+		}
+
 	}
 }
