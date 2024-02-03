@@ -115,7 +115,6 @@ func manageTrusts(s []string) {
 	if checkCommand(s[1], "trusts") {
 		usage(s)
 	} else if checkCommand(s[1], "list") {
-		fmt.Printf("List of domain trusts:\n")
 		listTrusts()
 	}
 }
@@ -146,11 +145,17 @@ func listTrusts() {
 		return
 	}
 
-	for _, entry := range sr.Entries {
-		for _, v := range entry.Attributes {
-			fmt.Printf("%s: %s\n", v.Name, v.Values)
+	if len(sr.Entries) > 0 {
+		fmt.Printf("List of domain trusts:\n")
+		for _, entry := range sr.Entries {
+			for _, v := range entry.Attributes {
+				fmt.Printf("%s: %s\n", v.Name, v.Values)
+			}
 		}
+	} else {
+		fmt.Printf("No domain trusts found\n")
 	}
+
 }
 
 func manageDomains(s []string) {
@@ -162,7 +167,6 @@ func manageDomains(s []string) {
 	if checkCommand(s[1], "domains") {
 		usage(s)
 	} else if checkCommand(s[1], "list") {
-		fmt.Printf("List of domains:\n")
 		listDomains()
 	}
 }
@@ -193,15 +197,21 @@ func listDomains() {
 		return
 	}
 
-	for _, entry := range sr.Entries {
-		fmt.Printf("- %s:\n", strings.ToUpper(entry.GetEqualFoldAttributeValue("name")))
-		fmt.Printf("\tDistinguished name: %s\n", entry.GetEqualFoldAttributeValue("distinguishedName"))
-		fmt.Printf("\tMachine Account quota: %s\n", entry.GetEqualFoldAttributeValue("ms-DS-MachineAccountQuota"))
+	if len(sr.Entries) > 0 {
+		fmt.Println("List of domains:")
 
-		sidString := convertBinToSid(entry.GetEqualFoldAttributeValue("objectSid"))
-		fmt.Printf("\tSID: %s\n", sidString)
+		for _, entry := range sr.Entries {
+			fmt.Printf("- %s:\n", strings.ToUpper(entry.GetEqualFoldAttributeValue("name")))
+			fmt.Printf("\tDistinguished name: %s\n", entry.GetEqualFoldAttributeValue("distinguishedName"))
+			fmt.Printf("\tMachine Account quota: %s\n", entry.GetEqualFoldAttributeValue("ms-DS-MachineAccountQuota"))
 
-		fmt.Printf("\tForest functional level: %s\n", entry.GetEqualFoldAttributeValue("msDS-Behavior-Version"))
+			sidString := convertBinToSid(entry.GetEqualFoldAttributeValue("objectSid"))
+			fmt.Printf("\tSID: %s\n", sidString)
+
+			fmt.Printf("\tForest functional level: %s\n", entry.GetEqualFoldAttributeValue("msDS-Behavior-Version"))
+		}
+	} else {
+		fmt.Println("No domains found")
 	}
 }
 
@@ -214,7 +224,6 @@ func manageGroups(s []string) {
 	if checkCommand(s[1], "groups") {
 		usage(s)
 	} else if checkCommand(s[1], "list") {
-		fmt.Printf("List of groups:\n")
 		listGroups()
 	}
 }
@@ -245,11 +254,34 @@ func listGroups() {
 		return
 	}
 
-	for _, entry := range sr.Entries {
-		fmt.Printf("- %s:\n", entry.GetEqualFoldAttributeValue("cn"))
-		fmt.Printf("\tDistinguished name: %s\n", entry.GetEqualFoldAttributeValue("distinguishedName"))
-		sidString := convertBinToSid(entry.GetEqualFoldAttributeValue("objectSid"))
-		fmt.Printf("\tSID: %s\n", sidString)
+	if len(sr.Entries) > 0 {
+		fmt.Println("List of groups:")
+
+		for _, entry := range sr.Entries {
+			fmt.Printf("- %s:\n", entry.GetEqualFoldAttributeValue("cn"))
+			fmt.Printf("\tDistinguished name: %s\n", entry.GetEqualFoldAttributeValue("distinguishedName"))
+			sidString := convertBinToSid(entry.GetEqualFoldAttributeValue("objectSid"))
+			fmt.Printf("\tSID: %s\n", sidString)
+
+			memberValues := entry.GetEqualFoldAttributeValues("member")
+			if len(memberValues) > 0 {
+				fmt.Printf("\tMembers of the group:\n")
+				for _, v := range memberValues {
+					fmt.Printf("\t\t- %s\n", v)
+				}
+			}
+
+			memberOfValues := entry.GetEqualFoldAttributeValues("memberof")
+			if len(memberOfValues) > 0 {
+				fmt.Printf("\tMember of:\n")
+				for _, v := range memberOfValues {
+					fmt.Printf("\t\t- %s\n", v)
+				}
+			}
+
+		}
+	} else {
+		fmt.Println("No groups found")
 	}
 }
 
@@ -293,7 +325,6 @@ func manageGPOs(s []string) {
 	if checkCommand(s[1], "help") {
 		usage(s)
 	} else if checkCommand(s[1], "list") {
-		fmt.Printf("List of Group Policy Objects:\n")
 		listGPOs()
 	}
 }
@@ -324,10 +355,16 @@ func listGPOs() {
 		return
 	}
 
-	for _, entry := range sr.Entries {
-		fmt.Printf("- %s:\n", entry.GetEqualFoldAttributeValue("displayName"))
-		fmt.Printf("\tPath: %s\n", entry.GetEqualFoldAttributeValue("gPCFileSysPath"))
-		fmt.Printf("\tDistinguished name: %s\n", entry.GetEqualFoldAttributeValue("distinguishedName"))
+	if len(sr.Entries) > 0 {
+		fmt.Println("List of Group Policy objects:")
+
+		for _, entry := range sr.Entries {
+			fmt.Printf("- %s:\n", entry.GetEqualFoldAttributeValue("displayName"))
+			fmt.Printf("\tPath: %s\n", entry.GetEqualFoldAttributeValue("gPCFileSysPath"))
+			fmt.Printf("\tDistinguished name: %s\n", entry.GetEqualFoldAttributeValue("distinguishedName"))
+		}
+	} else {
+		fmt.Println("No Group Policy objects found")
 	}
 }
 
@@ -340,7 +377,6 @@ func manageComputers(s []string) {
 	if checkCommand(s[1], "help") {
 		usage(s)
 	} else if checkCommand(s[1], "list") {
-		fmt.Printf("List of computers:\n")
 		listComputers()
 	}
 }
@@ -397,35 +433,42 @@ func listUsers() {
 		return
 	}
 
-	for _, entry := range sr.Entries {
-		fmt.Printf("- %s\n", entry.GetEqualFoldAttributeValue("sAMAccountName"))
-		fmt.Printf("\tDistinguished name: %s\n", entry.DN)
-		fmt.Printf("\tUser principal name (UPN): %s\n", entry.GetEqualFoldAttributeValue("userPrincipalName"))
+	if len(sr.Entries) > 0 {
+		fmt.Println("List of users")
 
-		userAccountControl, err := strconv.Atoi(entry.GetEqualFoldAttributeValue("userAccountControl"))
-		if err != nil {
-			ErrorLog.Printf("Failed to parse value of property 'userAccountControl'\n")
-		}
+		for _, entry := range sr.Entries {
+			fmt.Printf("- %s\n", entry.GetEqualFoldAttributeValue("sAMAccountName"))
+			fmt.Printf("\tDistinguished name: %s\n", entry.DN)
+			fmt.Printf("\tUser principal name (UPN): %s\n", entry.GetEqualFoldAttributeValue("userPrincipalName"))
 
-		userEnabled := (userAccountControl & (1 << (2 - 1))) == 0
-		fmt.Printf("\tEnabled: %t\n", userEnabled)
+			userAccountControl, err := strconv.Atoi(entry.GetEqualFoldAttributeValue("userAccountControl"))
+			if err != nil {
+				ErrorLog.Printf("Failed to parse value of property 'userAccountControl'\n")
+			}
 
-		userDescription := entry.GetEqualFoldAttributeValue("description")
-		if userDescription != "" {
-			fmt.Printf("\tDescription: %s\n", userDescription)
-		}
+			userEnabled := (userAccountControl & (1 << (2 - 1))) == 0
+			fmt.Printf("\tEnabled: %t\n", userEnabled)
 
-		sidString := convertBinToSid(entry.GetEqualFoldAttributeValue("objectSid"))
-		fmt.Printf("\tSID: %s\n", sidString)
+			userDescription := entry.GetEqualFoldAttributeValue("description")
+			if userDescription != "" {
+				fmt.Printf("\tDescription: %s\n", userDescription)
+			}
 
-		userGroups := entry.GetEqualFoldAttributeValues("memberof")
-		if len(userGroups) > 0 {
-			fmt.Println("\tMember of these groups:")
-			for _, g := range userGroups {
-				fmt.Printf("\t\t- %s\n", g)
+			sidString := convertBinToSid(entry.GetEqualFoldAttributeValue("objectSid"))
+			fmt.Printf("\tSID: %s\n", sidString)
+
+			userGroups := entry.GetEqualFoldAttributeValues("memberof")
+			if len(userGroups) > 0 {
+				fmt.Println("\tMember of these groups:")
+				for _, g := range userGroups {
+					fmt.Printf("\t\t- %s\n", g)
+				}
 			}
 		}
+	} else {
+		fmt.Println("No users found")
 	}
+
 }
 
 func manageUsers(s []string) {
@@ -437,7 +480,6 @@ func manageUsers(s []string) {
 	if checkCommand(s[1], "help") {
 		usage(s)
 	} else if checkCommand(s[1], "list") {
-		fmt.Printf("List of users:\n")
 		listUsers()
 	}
 }
@@ -468,26 +510,32 @@ func listComputers() {
 		return
 	}
 
-	for _, entry := range sr.Entries {
-		fmt.Printf("%s:\n", entry.GetEqualFoldAttributeValue("cn"))
-		fmt.Printf("\tDistinguished name: %s\n", entry.DN)
-		fmt.Printf("\tSAM account name: %s\n", entry.GetEqualFoldAttributeValue("sAMAccountName"))
+	if len(sr.Entries) > 0 {
+		fmt.Println("List of computers:")
 
-		sidString := convertBinToSid(entry.GetEqualFoldAttributeValue("objectSid"))
-		fmt.Printf("\tSID: %s\n", sidString)
+		for _, entry := range sr.Entries {
+			fmt.Printf("%s:\n", entry.GetEqualFoldAttributeValue("cn"))
+			fmt.Printf("\tDistinguished name: %s\n", entry.DN)
+			fmt.Printf("\tSAM account name: %s\n", entry.GetEqualFoldAttributeValue("sAMAccountName"))
 
-		userAccountControl, err := strconv.Atoi(entry.GetEqualFoldAttributeValue("userAccountControl"))
-		if err != nil {
-			ErrorLog.Printf("Failed to parse value of property 'userAccountControl'\n")
+			sidString := convertBinToSid(entry.GetEqualFoldAttributeValue("objectSid"))
+			fmt.Printf("\tSID: %s\n", sidString)
+
+			userAccountControl, err := strconv.Atoi(entry.GetEqualFoldAttributeValue("userAccountControl"))
+			if err != nil {
+				ErrorLog.Printf("Failed to parse value of property 'userAccountControl'\n")
+			}
+
+			userEnabled := (userAccountControl & (1 << (2 - 1))) == 0
+			fmt.Printf("\tEnabled: %t\n", userEnabled)
+
+			userDescription := entry.GetEqualFoldAttributeValue("description")
+			if userDescription != "" {
+				fmt.Printf("\tDescription: %s\n", userDescription)
+			}
 		}
-
-		userEnabled := (userAccountControl & (1 << (2 - 1))) == 0
-		fmt.Printf("\tEnabled: %t\n", userEnabled)
-
-		userDescription := entry.GetEqualFoldAttributeValue("description")
-		if userDescription != "" {
-			fmt.Printf("\tDescription: %s\n", userDescription)
-		}
+	} else {
+		fmt.Println("No computers found")
 	}
 }
 
