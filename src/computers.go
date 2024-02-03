@@ -34,12 +34,12 @@ func listComputers() {
 		return
 	}
 
-	sr, err := l.Search(&ldap.SearchRequest{
+	sr, err := l.SearchWithPaging(&ldap.SearchRequest{
 		BaseDN:       ldapBaseDN,
 		Scope:        ldap.ScopeWholeSubtree,
 		DerefAliases: ldap.NeverDerefAliases,
 		Filter:       "(objectClass=Computer)",
-	})
+	}, 1000)
 
 	if err != nil {
 		ErrorLog.Printf("Error while performing search: %s\n", err)
