@@ -23,6 +23,8 @@ func menu() {
 
 		if checkCommand(s[0], "help") {
 			usage([]string{})
+		} else if checkCommand(s[0], "certificates") {
+			manageCertificates(s)
 		} else if checkCommand(s[0], "computers") {
 			manageComputers(s)
 		} else if checkCommand(s[0], "domains") {
@@ -47,6 +49,7 @@ func menu() {
 func usage(s []string) {
 	if len(s) == 0 {
 		fmt.Printf("Available commands:\n\n")
+		fmt.Println("certificates\t\t\tManage computers")
 		fmt.Println("computers\t\t\tManage computers")
 		fmt.Println("domains\t\t\t\tManage domains")
 		fmt.Println("gpos\t\t\t\tManage Group Policy objects")
@@ -56,7 +59,14 @@ func usage(s []string) {
 		return
 	}
 
-	if checkCommand(s[0], "computers") {
+	if checkCommand(s[0], "certificates") {
+		if len(s) == 1 {
+			fmt.Printf("Usage: certificates COMMAND\n\n")
+			fmt.Printf("Commands:\n")
+			fmt.Println("list")
+			return
+		}
+	} else if checkCommand(s[0], "computers") {
 		if len(s) == 1 {
 			fmt.Printf("Usage: computers COMMAND\n\n")
 			fmt.Printf("Commands:\n")
